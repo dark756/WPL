@@ -1,0 +1,16 @@
+
+CREATE TABLE Users (
+    userid INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(25) UNIQUE NOT NULL,
+    passwd VARCHAR(255) NOT NULL, 
+    email VARCHAR(40) UNIQUE NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    address TEXT,
+    gender ENUM('Male', 'Female') NOT NULL,
+    role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+    dob DATE NOT NULL DEFAULT '2000-01-01'
+);
+
+CREATE VIEW admin AS 
+SELECT userid, username, email, name, address, gender, role, dob 
+FROM Users;
