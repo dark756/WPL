@@ -8,6 +8,7 @@ if (!isset($_SESSION['userid'])) {
 }
 
 $userid = $_SESSION['userid'];
+// Fetch user info
 $sql = "SELECT name, username FROM Users WHERE userid = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $userid);
@@ -16,39 +17,32 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $stmt->close();
 
-$products = [
-    ["name" => "Stylish Watch", "price" => 8500, "image" => "1.png"],  
-    ["name" => "Running Shoes", "price" => 6500, "image" => "2.png"],  
-    ["name" => "Wireless Headphones", "price" => 4000, "image" => "3.png"],  
-    ["name" => "Gaming Laptop", "price" => 108000, "image" => "4.png"],  
-    ["name" => "Smartphone", "price" => 58000, "image" => "5.png"],  
-    ["name" => "DSLR Camera", "price" => 42000, "image" => "6.png"]  
-];
+// Fetch products from DB
+$products = [];
+$sql = "SELECT pid, pname, price FROM products";
+$result = $conn->query($sql);
+while ($row = $result->fetch_assoc()) {
+    $products[] = $row;
+}
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: Arial, sans-serif;
-        }
         body {
             background-color: #333;
             color: white;
+            font-family: Arial, sans-serif;
+            margin: 0;
         }
         .header {
             background: #222;
             padding: 15px;
             display: flex;
             justify-content: flex-end;
-            align-items: center;
         }
         .user-info {
             font-size: 18px;
@@ -80,7 +74,6 @@ $products = [
             padding: 20px;
             text-align: center;
             border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         .product img {
             width: 100%;
@@ -118,6 +111,7 @@ $products = [
             border: 1px solid #ddd;
             margin: 0 5px;
             border-radius: 5px;
+            background: #eee;
         }
         .product button.buy-now {
             background: #ff5722;
@@ -134,58 +128,116 @@ $products = [
         .product button.buy-now:hover {
             background: #e64a19;
         }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            color: black;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 300px;
+        }
+        .modal-content form {
+            margin-top: 15px;
+        }
+        .modal-content button {
+            padding: 8px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-confirm {
+            background: #28a745;
+            color: white;
+        }
+        .btn-cancel {
+            background: #ccc;
+        }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="user-info">
-
-            Welcome <a href="profile.php?userid=<?= $userid; ?>"><?= htmlspecialchars($user['name']); ?></a>
-              (<?= htmlspecialchars($user['username']); ?>)  
-            <a href="logout.php">Logout</a>
-        </div>
+<div class="header">
+    <div class="user-info">
+	Welcome <?= htmlspecialchars($user['name']) ?> (<a href="profile.php"><?=htmlspecialchars($user['username'])?></a> )
+        <a href="logout.php">Logout</a>
     </div>
+</div>
 
-    <div class="container">
-        <h2>Featured Products</h2>
-        <div class="products">
-            <?php foreach ($products as $product) { ?>
-                <div class="product">
-                    <img src="<?= htmlspecialchars($product['image']); ?>" alt="Product Image">
-                    <h3><?= htmlspecialchars($product['name']); ?></h3>
-                    <p>₹<?= number_format($product['price'], 2); ?></p>
-                    <div class="quantity">
-                        <button onclick="decreaseQty(this)">-</button>
-                        <input type="text" value="1" readonly>
-                        <button onclick="increaseQty(this)">+</button>
-                    </div>
-                    <button class="buy-now" onclick="confirmPurchase('<?= htmlspecialchars($product['name']); ?>')">Buy Now</button>
+<div class="container">
+    <h2>Featured Products</h2>
+    <div class="products">
+        <?php foreach ($products as $product): ?>
+            <div class="product">
+                <img src="images/<?= $product['pid'] ?>.png" alt="<?= htmlspecialchars($product['pname']) ?>">
+                <h3><?= htmlspecialchars($product['pname']) ?></h3>
+                <p>₹<?= number_format($product['price']) ?></p>
+                <div class="quantity">
+                    <button onclick="decreaseQty(this)">-</button>
+                    <input type="text" value="1" readonly>
+                    <button onclick="increaseQty(this)">+</button>
                 </div>
-            <?php } ?>
-        </div>
+                <button class="buy-now" onclick="openModal(<?= $product['pid'] ?>, '<?= htmlspecialchars($product['pname']) ?>', <?= $product['price'] ?>, this)">Buy Now</button>
+            </div>
+        <?php endforeach; ?>
     </div>
+</div>
 
-    <script>
-        function increaseQty(button) {
-            let input = button.previousElementSibling;
-            let currentValue = parseInt(input.value);
-            input.value = currentValue + 1;
-        }
+<!-- Modal -->
+<div class="modal" id="purchaseModal">
+    <div class="modal-content">
+        <p id="modalText">Confirm purchase?</p>
+        <form method="POST" action="purchase.php">
+            <input type="hidden" name="pid" id="modalPid">
+            <input type="hidden" name="quantity" id="modalQty">
+            <button type="submit" class="btn-confirm">Confirm</button>
+            <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+        </form>
+    </div>
+</div>
 
-        function decreaseQty(button) {
-            let input = button.nextElementSibling;
-            let currentValue = parseInt(input.value);
-            if (currentValue > 1) {
-                input.value = currentValue - 1;
-            }
-        }
+<script>
+    function increaseQty(button) {
+        let input = button.previousElementSibling;
+        let currentValue = parseInt(input.value);
+        input.value = currentValue + 1;
+    }
 
-        function confirmPurchase(productName) {
-            if (confirm("Are you sure you want to buy " + productName + "?")) {
-                alert("Purchase confirmed!");
-            }
+    function decreaseQty(button) {
+        let input = button.nextElementSibling;
+        let currentValue = parseInt(input.value);
+        if (currentValue > 1) {
+            input.value = currentValue - 1;
         }
-    </script>
+    }
+
+    function openModal(pid, name, price, button) {
+        const qty = parseInt(button.parentElement.querySelector('input').value);
+        const total = qty * price;
+
+        document.getElementById('modalPid').value = pid;
+        document.getElementById('modalQty').value = qty;
+        document.getElementById('modalText').textContent =
+            `Buy "${name}" × ${qty} = ₹${total.toLocaleString()}?`;
+
+        document.getElementById('purchaseModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('purchaseModal').style.display = 'none';
+    }
+</script>
 </body>
 </html>

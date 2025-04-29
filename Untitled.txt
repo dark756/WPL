@@ -14,3 +14,68 @@ CREATE TABLE Users (
 CREATE VIEW admin AS 
 SELECT userid, username, email, name, address, gender, role, dob 
 FROM Users;
+
+CREATE TABLE products (
+    pid INT AUTO_INCREMENT PRIMARY KEY,
+    pname VARCHAR(255),
+    price FLOAT,
+);
+
+INSERT INTO products (pname, price) VALUES
+('Stylish Watch', 8500),
+('Running Shoes', 6500),
+('Wireless Headphones', 4000),
+('Gaming Laptop', 108000),
+('Smartphone', 58000),
+('DSLR Camera', 42000);
+
+
+CREATE TABLE sales (
+    pid INT,
+    userid INT,
+    quantity INT CHECK (quantity > 0),
+    total FLOAT,
+    time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (pid, userid, time),
+    FOREIGN KEY (pid) REFERENCES products(pid),
+    FOREIGN KEY (userid) REFERENCES users(userid)
+);
+
+DELIMITER $$
+
+CREATE TRIGGER calculate_total_before_insert
+BEFORE INSERT ON sales
+FOR EACH ROW
+BEGIN
+    DECLARE product_price FLOAT;
+
+    SELECT price INTO product_price
+    FROM products
+    WHERE pid = NEW.pid;
+
+    SET NEW.total = product_price * NEW.quantity;
+END$$
+
+DELIMITER ;
+
+
+CREATE VIEW transactions AS
+SELECT
+    s.userid,
+    u.username,
+    u.name AS customer_name,
+    u.email,
+    s.pid,
+    p.pname,
+    p.price,
+    s.quantity,
+    s.total,
+    s.time
+FROM
+    sales s
+JOIN
+    users u ON s.userid = u.userid
+JOIN
+    products p ON s.pid = p.pid;
+
+
